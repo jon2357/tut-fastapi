@@ -3,9 +3,11 @@
 # http://127.0.0.1:8000/redoc
 
 from enum import Enum
-from fastapi import FastAPI
+from fastapi import FastAPI, Query, Path
 
-
+###########################################################
+#### GET API setup Examples
+###########################################################
 class ModelName(str, Enum):
     alexnet = "alexnet"
     resnet = "resnet"
@@ -14,13 +16,94 @@ class ModelName(str, Enum):
 
 fake_items_db = [{"item_name": "Foo"}, {"item_name": "Bar"}, {"item_name": "Baz"}]
 
+###########################################################
+#### POST API End Point Examples
+###########################################################
+from pydantic import BaseModel
+
+
+class Item(BaseModel):
+    name: str
+    description: str | None = None
+    price: float
+    tax: float | None = None
+
 
 app = FastAPI()
+
+###########################################################
+#### POST API End Point Examples
+###########################################################
+@app.post("/items/")
+async def create_item(item: Item):
+    item_dict = item.dict()
+    if item.tax:
+        price_with_tax = item.price + item.tax
+        item_dict.update({"price_with_tax": price_with_tax})
+    return item_dict
+
+
+@app.put("/items/{item_id}")
+async def create_item(item_id: int, item: Item, q: str | None = None):
+    result = {"item_id": item_id, **item.dict()}
+    if q:
+        result.update({"q": q})
+    return result
+
+
+###########################################################
+#### GET API End Point Examples
+###########################################################
 
 # http://127.0.0.1:8000/
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
+
+
+@app.get("/items/")
+async def read_items(
+    q: list[str]
+    | None = Query(
+        default=["foo", "bar"],
+        alias="item-query",
+        title="Query string",
+        description="Query string for the items to search in the database that have a good match",
+        min_length=3,
+        max_length=50,
+        deprecated=True,
+        include_in_schema=False,
+    )
+):
+    results = {"items": [{"item_id": "Foo"}, {"item_id": "bar"}]}
+    if q:
+        results.update({"q": q})
+
+    return results
+
+
+@app.get("/items/{item_id}")
+async def read_items(
+    item_id: int = Path(title="The ID of the item to get"),
+    q: str | None = Query(default=None, alias="item-query"),
+):
+    results = {"item_id": item_id}
+    if q:
+        results.update({"q": q})
+    return results
+
+
+@app.get("/items/{item_id}")
+async def read_items(
+    *,
+    item_id: int = Path(title="The ID of the item to get", ge=0, le=1000),
+    q: str,
+    size: float = Query(gt=0, lt=10.5)
+):
+    results = {"item_id": item_id}
+    if q:
+        results.update({"q": q})
+    return results
 
 
 # http://127.0.0.1:8000/items/?skip=0&limit=10
